@@ -10,7 +10,7 @@ import com.amazonaws.services.lambda.runtime.Context
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-
+import scala.annotation.switch
 
 class Main {
 
@@ -30,7 +30,7 @@ class Main {
     Await.result(respF,Duration.create(10,"seconds"))
   }
 
-  def sendToNewRelicChunk(entries: Seq[LogEntry], splitCount: Int, count: Int ): Unit = count match {
+  def sendToNewRelicChunk(entries: Seq[LogEntry], splitCount: Int, count: Int ): Unit = (count: @switch) match {
     case 0 => Future { postJson(entries)}
     case _ =>
               Future { postJson(entries.take(splitCount)) }
@@ -55,9 +55,15 @@ class Main {
   def handleEvent(event: S3Event, context: Context) = {
     event.getRecords.asScala.foreach { record =>
        val bucket = record.getS3.getBucket.getName
-       val key = URLDecoder.decode(record.getS3.getObject.getKey,"UTF-8")
+       val key = URLDecoder.decode(record.getS3.getObject.getKey, "UTF-8")
        println("Received key " + key)
-       sendToNewRelic(parseLogFile(bucket,key))
-    } 
-  } 
+
+       parseLogFile(bucket,key)
+         .map(sendToNewRelic(_))
+         .recover {
+           //TODO: setup logging
+           case ex: Throwable => ex.printStackTrace()
+         }
+    }
+  }
 }

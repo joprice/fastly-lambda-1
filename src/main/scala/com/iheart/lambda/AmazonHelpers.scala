@@ -2,14 +2,13 @@ package com.iheart.lambda
 
 import java.text.SimpleDateFormat
 import java.util.Date
-
 import com.amazonaws.services.logs.AWSLogsClient
 import com.amazonaws.services.logs.model._
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.GetObjectRequest
 import scala.collection.JavaConverters._
 import scala.io.Source
-
+import scala.util.Try
 
 object AmazonHelpers {
 
@@ -23,9 +22,15 @@ object AmazonHelpers {
     s.format(new Date())
   }
 
-  def readFileFromS3(bucket: String, key: String) = {
+  def readFileFromS3(bucket: String, key: String) = Try[Seq[String]] {
     val s3Object = s3Client.getObject(new GetObjectRequest(bucket,key))
-    Source.fromInputStream(s3Object.getObjectContent).getLines()
+    var source: Source = null
+    try {
+      source = Source.fromInputStream(s3Object.getObjectContent)
+      source.getLines().toSeq
+    } finally {
+      if (source != null) source.close()
+    }
   }
 
   def getCloudSeqToken(logStream: String) = {

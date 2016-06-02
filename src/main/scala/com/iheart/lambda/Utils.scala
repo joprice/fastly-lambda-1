@@ -6,7 +6,7 @@ import org.json4s.{FieldSerializer, DefaultFormats}
 import org.json4s.native.Serialization.write
 import com.typesafe.config._
 import play.Logger
-
+import scala.util.Try
 
 case class LogEntry(fields: Map[String,Any])
 
@@ -24,8 +24,10 @@ object Utils  {
   type EmptyResponse = String
 
   val conf = ConfigFactory.load()
-  val regex = conf.getString("regex.pattern")
-  val pattern = Pattern.compile(regex)
+  val pattern = {
+    val regex = conf.getString("regex.pattern")
+    Pattern.compile(regex)
+  }
   val insightApiKey = conf.getString("newrelic.apikey")
   val insightUrl = conf.getString("newrelic.apiUrl")
 
@@ -46,9 +48,10 @@ object Utils  {
     * Reads a file from S3, parses it and returns
     * a sequence of Option[LogEntry]
   **********************************************/
-  def parseLogFile(bucket: String, key: String): Seq[Option[LogEntry]] = {
-    val data = readFileFromS3(bucket,key)
-    data.map(parseRecord(_)).toSeq
+  def parseLogFile(bucket: String, key: String): Try[Seq[Option[LogEntry]]] = {
+    readFileFromS3(bucket,key).map { data =>
+      data.map(parseRecord(_)).toSeq
+    }
   }
 
 
@@ -103,7 +106,6 @@ object Utils  {
   * the logfile, parses it and returns an Option[LogEntry]
   ************************************************************/
   def parseRecord(line: String): Option[LogEntry] = {
-
     val matcher = pattern.matcher(line)
 
     if (matcher.find())
